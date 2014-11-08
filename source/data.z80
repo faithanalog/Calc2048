@@ -1,0 +1,87 @@
+.module Data
+;Background color for tiles. Also contains foreground colors for text
+;so it can be used as sprite palettes
+.align 64
+TileColorTable:
+.db CEh,16h, 00h,00h ;Empty
+.db EFh,3Bh, 73h,6Ch ;Tile 2
+.db EFh,19h, 73h,6Ch ;Tile 4
+.db F5h,8Fh, FFh,BEh ;Tile 8
+.db F4h,ACh, FFh,BEh ;Tile 16
+.db F3h,EBh, FFh,BEh ;Tile 32
+.db F2h,E7h, FFh,BEh ;Tile 64
+.db EEh,6Eh, FFh,BEh ;Tile 128
+.db EEh,6Ch, FFh,BEh ;Tile 256
+.db EEh,4Ah, FFh,BEh ;Tile 512
+.db EEh,27h, FFh,BEh ;Tile 1024
+.db EEh,05h, FFh,BEh ;Tile 2048
+.db 39h,C6h, FFh,BEh ;Tile 4096
+.db 39h,C6h, FFh,BEh ;Tile 8192
+
+TwosPowerTable:
+.dw 2
+.dw 4
+.dw 8
+.dw 16
+.dw 32
+.dw 64
+.dw 128
+.dw 256
+.dw 512
+.dw 1024
+.dw 2048
+.dw 4096
+.dw 8192
+.dw 16384 ;Nobody is gonna get this value lol
+
+;Tile numbers for display on tiles, in BCD
+;See above table for order of values
+;The digits are defined backwards because little endian
+TileNumTable:
+.db 2,0,0,0,0,0
+.db 4,0,0,0,0,0
+.db 8,0,0,0,0,0
+.db 6,1,0,0,0,0
+.db 2,3,0,0,0,0
+.db 4,6,0,0,0,0
+.db 8,2,1,0,0,0
+.db 6,5,2,0,0,0
+.db 2,1,5,0,0,0
+.db 4,2,0,1,0,0
+.db 8,4,0,2,0,0
+.db 6,9,0,4,0,0
+.db 2,9,1,8,0,0
+
+;X offsets in pixels for tile numbers (to center them on the tiles)
+;See TwosPowerTable for order of values
+.align 16 ;OffTable, X coord, Y coord, no worries about overflow for offsets
+TileNumOffTable:
+.db 21
+.db 21
+.db 21
+.db 15
+.db 15
+.db 15
+.db 9
+.db 9
+.db 9
+.db 9
+
+GameOverPic:
+.db 176, 53
+.dw (176 / 8) * 53
+.incbmp "assets/text_gameover.png"
+
+Font:
+.incbmp "assets/chars.png"
+
+;Mem for board data allocated in program, used to store board between runs.
+;Same applies to score
+board:
+.fill 16,0
+prev_board: ;Used to store previous board state for looking for changes
+.fill 16,0
+
+score:
+.fill 3, 0
+.endmodule

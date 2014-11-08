@@ -1,0 +1,74 @@
+.module TextGraphics
+.var word, textFg
+.var word, textBg
+.var word, textCol
+.var byte, textRow
+;Draws single digit num in 'A' with black text on white background
+;Auto increments textCol, but does not wrap
+DrawNum:
+    push af
+    ld hl,(textCol)
+    ld bc,12 ;Width
+    ld a,(textRow)
+    ld d,a
+    ld e,14 ;Height
+    call SetLCDWin
+    pop af
+
+    ;A *= 7
+    ld h,a ;A * 1
+    add a,a
+    ld l,a ;A * 2
+    add a,a
+    add a,h
+    add a,l
+
+    ld h,0
+    ld l,a
+    ld de,Font
+    add hl,de
+
+    push hl
+    pop ix ;IX = data pointer
+
+    ld c,11h
+
+    ld hl,(textFg)
+    ld de,(textBg)
+
+    ;Draw text, upscaled x2
+    ld b,14
+_drawRow:
+    push bc
+    ld a,(ix)
+    ld b,6
+    _drawCol:
+        rla
+        jr nc,_drawBG
+        _drawFG:
+            out (c),h
+            out (c),l
+            out (c),h
+            out (c),l
+            djnz _drawCol
+            jr _drawColDone
+        _drawBG:
+            out (c),d
+            out (c),e
+            out (c),d
+            out (c),e
+            djnz _drawCol
+        _drawColDone:
+    pop bc
+    bit 0,b
+    jr z,$+4 ;If b is even, don't inc ix (display row twice)
+    inc ix
+    djnz _drawRow
+
+    ;Increment cursor
+    ld hl,(textCol)
+    ld de,12
+    add hl,de
+    ld (textCol),hl
+    ret
+.endmodule

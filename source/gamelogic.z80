@@ -1,0 +1,318 @@
+.module GameLogic
+;board & prev_board defined in data.z80
+.var 32, save_board ;Used by the game over checker, since prev_board and alt_board are used already
+.var 16, alt_board  ;Used as alternate board storage when we don't want to use prev_board
+
+;Game loop logic:
+;While clear not pressed
+;   NumRotations = Case key of
+;       Left:  0
+;       Up:    1
+;       Right: 2
+;       Down:  3
+;   Copy board -> old board
+;   For NumRotations
+;       Rotate90
+;   MoveBoardLeft
+;   For (4 - NumRotations)
+;       Rotate90
+;   If board != old board
+;       Gen tile
+;       If no valid moves
+;           Lose
+GameLoop:
+    call WaitForKey
+    bit 6,a ;Clear key
+    ret z
+    call GameStep
+    call DrawTiles
+    jr GameLoop
+
+GameStep:
+    rra ;Down
+    jr c,$+4
+    ld b,3
+    rra ;Left
+    jr c,$+4
+    ld b,0
+    rra ;Right
+    jr c,$+4
+    ld b,2
+    rra ;Up
+    jr c,$+4
+    ld b,1
+
+    push bc ;Save num rotations
+    ;Save board state
+    ld hl,board
+    ld de,prev_board
+    ld bc,16
+    ldir
+    pop bc
+
+    ld a,b
+    push bc
+    call RotateBoardN
+    call MoveBoardLeft
+    ;Unrotate board
+    pop bc ;BC = num rotations
+    ld a,4
+    sub b
+    ld b,a
+    call RotateBoardN
+
+    call ScanBoardChanges
+    ;Z = no changes, NZ = changes
+    ret z
+
+    ;Board changed, draw score if needed, spawn tile
+    call DrawScore
+    call GenTile
+    call IsGameOver ;Is the game now over?
+    jp z,LoseGame
+    ret
+
+LoseGame:
+    ;Speed this part up
+    di
+    call DrawTiles ;Display results of losing move
+    call LightenBoard
+    ld h,34
+    ld l,93
+    ld ix,GameOverPic
+    call DrawSpriteTransparent
+    ei
+    call WaitForKey
+    call InitGame
+    ret
+
+
+;Checks if game is over by attempting to move board left, up, right, and down.
+;Set NZ if game not over, Z if game over
+IsGameOver:
+    call SaveGameState
+    ld b,4
+
+_gameOverLp:
+    push bc
+
+    ld hl,board
+    ld de,prev_board
+    ld bc,16
+    ldir
+
+    call MoveBoardLeft
+    call ScanBoardChanges
+    jr z,{@}
+    ;NZ, board changed, return NZ for game not over
+    pop bc ;Drop loop counter from stack
+    call RestoreGameState
+    xor a \ inc a ;Set NZ
+    ret
+    @:
+    call RotateBoard90
+    pop bc
+    djnz _gameOverLp
+    call RestoreGameState
+    xor a ;Set Z
+    ret
+
+;Saves board/prev_board and score
+SaveGameState:
+    ;Save an extra copy of the board/prevboard at save_board
+    ld hl,board
+    ld de,save_board
+    ld bc,32
+    ldir
+    jp SaveScore ;Moving the board modifies score, so this is so we can unmodify it
+
+;Restores board/prev_board and score
+RestoreGameState:
+    ld hl,save_board
+    ld de,board
+    ld bc,32
+    ldir
+    jp RestoreScore
+
+;Compares board to prev_board
+;If there was a change, return NZ, else Z
+ScanBoardChanges:
+    ld hl,board
+    ld de,prev_board
+    ld b,16
+_scanChanges:
+    ld a,(de)
+    cp (hl)
+    ret nz
+    inc hl \ inc de
+    djnz _scanChanges
+    ;Z flag should be set at this point
+    ret
+
+;Pseudo-code for algorithm
+;For Row, 0, 3
+;   For Col, 0, 2
+;       tile = TileAt(Col, Row)
+;       If tile > 0
+;           For Off, Col, 3
+;               If TileAt(Off, Row) == tile
+;                   TileSet(Col, Row, tile + 1)
+;                   TileSet(Off, Row, 0)
+;                   break
+;       Else
+;           For Off, Col, 3
+;               If TileAt(Off, Row) != 0
+;                   TileSet(Col, Row, TileAt(Off, Row))
+;                   TileSet(Off, Row, 0)
+;                   break
+;
+MoveBoardLeft:
+    ld ix,board
+    ld e,4 ;Row counter
+_lpRow: ;For rows
+    ld c,3 ;Col counter
+    _lpCol: ;For columns
+        ld b,c ;Number of columns to scan to the right
+
+        push ix \ pop hl \ inc hl ;HL = scanner pointer
+
+        ld a,(ix) ;Current tile
+        or a
+        jr nz,_scanNum
+        _scanZero: ;Scan for any tile
+            ld a,(hl)
+            or a
+            jr z,{@}
+            ;Tile != 0
+            ld (hl),0
+            ld (ix),a
+            jr _scanNum ;Now that tile has been moved, continue scanning to see if another can be combined with it
+            @:
+            inc hl
+            djnz _scanZero
+            jr _scanOver
+        _scanNum:  ;Scan for matching tile
+            ld a,(hl)
+            cp (ix)
+            jr nz,{@}
+            ;Tiles match
+            ld (hl),0
+            inc (ix)
+            inc a ;A = (ix)
+            call AddTileToScore
+            jr _scanOver
+            @:
+            ;Tiles didn't match
+            or a
+            jr nz,_scanOver ;If tiles didn't match and it wasn't an empty tile, stop scan
+            inc hl
+            djnz _scanNum
+        _scanOver:
+        inc ix
+        dec c
+        jr nz, _lpCol
+    inc ix ;Extra inc to next row since we only start scans at 3 columns
+    dec e
+    jr nz, _lpRow
+    ret
+
+;Rotates board data 90 degrees counter-clockwise
+RotateBoard90:
+    ld a,(board + 3h) \ ld (alt_board + 0h),a
+    ld a,(board + 7h) \ ld (alt_board + 1h),a
+    ld a,(board + Bh) \ ld (alt_board + 2h),a
+    ld a,(board + Fh) \ ld (alt_board + 3h),a
+    ld a,(board + 2h) \ ld (alt_board + 4h),a
+    ld a,(board + 6h) \ ld (alt_board + 5h),a
+    ld a,(board + Ah) \ ld (alt_board + 6h),a
+    ld a,(board + Eh) \ ld (alt_board + 7h),a
+    ld a,(board + 1h) \ ld (alt_board + 8h),a
+    ld a,(board + 5h) \ ld (alt_board + 9h),a
+    ld a,(board + 9h) \ ld (alt_board + Ah),a
+    ld a,(board + Dh) \ ld (alt_board + Bh),a
+    ld a,(board + 0h) \ ld (alt_board + Ch),a
+    ld a,(board + 4h) \ ld (alt_board + Dh),a
+    ld a,(board + 8h) \ ld (alt_board + Eh),a
+    ld a,(board + Ch) \ ld (alt_board + Fh),a
+
+    ld hl,alt_board
+    ld de,board
+    ld bc,16
+    ldir
+    ret
+
+;Rotates 90 * b degrees
+;Input: B - num times to rotate
+RotateBoardN:
+    push bc
+    call RotateBoard90
+    pop bc
+    djnz RotateBoardN
+    ret
+
+;Clears the board
+ClearBoard:
+    ld hl,board
+    ld de,prev_board
+    ld a,FFh
+    ld b,16
+_clrBoardLp:
+        ld (hl),0
+        ld (de),a
+        inc hl
+        inc de
+        djnz _clrBoardLp
+    ret
+
+;D - X
+;E - Y
+;Output: HL = addr
+;Destroy A
+GetTileAddr:
+    ld a,e
+    add a,a
+    add a,a ;Y * 4
+    add a,d ;Y * 4 + x
+    ld h,board >> 8
+    add a,board
+    jr nc,$+3
+    inc h
+    ld l,a
+    ret
+
+;D - X
+;E - Y
+;A - Tile
+SetTile:
+    push af
+    call GetTileAddr
+    pop af
+    ld (hl),a
+    ret
+
+;Generates a new tile on the board.
+;90% chance of 2, 10% chance of 4
+GenTile:
+    ;Find open x/y position.
+    ld b,16
+    call RandInt
+    ld h,board >> 8
+    add a,board
+    jr nc,$+3
+    inc h
+    ld l,a
+    ld a,(hl)
+    or a
+    jr nz,GenTile
+
+    push hl
+    ld b,255
+    call RandInt
+    cp 228
+    ld a,1
+    jr c,$+3 ;If rand num was >= 228, gen 4
+    inc a
+    pop hl
+    ld (hl),a
+    ret
+.endmodule

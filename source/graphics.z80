@@ -1,0 +1,310 @@
+.module Graphics
+
+.define tileX(x) x * 29 + 3
+.define tileY(y) y * 58 + 7
+.define tileOffs(x,y) (_y * 4) + _x
+
+;Draws the full board regardless of previous board state
+DrawBoardFull:
+    ld hl,0
+    ld d,119
+    ld e,240
+    ld bc,BD74h
+    call ColorRectangle
+    .for _x, 0, 3
+        .for _y, 0, 3
+            ld h,tileX(_x)
+            ld l,tileY(_y)
+            ld a,(tileOffs(_x,_y) + board)
+            call DrawTile
+        .loop
+    .loop
+    ret
+
+;Draws the initial board
+DrawBoard:
+    ld hl,0
+    ld d,119
+    ld e,240
+    ld bc,BD74h
+    call ColorRectangle
+    jp DrawTiles
+
+;Draws tiles of board
+DrawTiles:
+    ;Unrolled loop for simplicity
+    .for _x, 0, 3
+        .for _y, 0, 3
+            ld h,tileX(_x)
+            ld l,tileY(_y)
+
+            ld a,(tileOffs(_x,_y) + prev_board)
+            ld c,a
+
+            ld a,(tileOffs(_x,_y) + board)
+            cp c
+            call nz, DrawTile ;Only draw tile if the tile has changed
+        .loop
+    .loop
+    ret
+
+;Redraw sidebar w/score
+DrawSidebar:
+    ;Right hand side of screen
+    ld h,119
+    ld l,0
+    ld d,41
+    ld e,240
+    ld bc,FFDDh
+    call ColorRectangle
+    jp DrawScore
+
+;H - Pixel X / 2
+;L - Pixel Y
+;A - Tile type
+DrawTile:
+    cp 13
+    jr c,$+4 ;If tile > 13, set it to 13. That way the LCD doesn't crash or something
+    ld a,13
+
+    push af ;Tile ID
+    push hl ;Position
+
+    ;Get fill color
+    add a,a
+    add a,a ;A *= 4 since each color table entry is 4 bytes
+
+    ld  h,TileColorTable >> 8
+    add a,TileColorTable
+    ld  l,a
+
+    ld b,(hl) \ inc hl
+    ld c,(hl) \ inc hl
+    ld d,(hl) \ inc hl
+    ld e,(hl)
+
+    ld (textBg),bc
+    ld (textFg),de
+
+    pop hl
+    push hl
+    ld d,26
+    ld e,52
+    call ColorRectangle
+
+    pop de ;X/Y
+    pop af ;A = tile ID
+    or a
+    ret z ;If tile == 0, ret now, no text
+    dec a ;Tile 0 has no sprite, therefor Tile 1 = Sprite 0
+
+    ld b,a ;Store tile ID
+
+    ;Calc address of value in offset table
+    ld  h,TileNumOffTable >> 8
+    add a,TileNumOffTable
+    ld l,a
+
+    ld a,d
+    add a,a    ;X *= 2
+    add a,(hl) ;X += offset
+    ld (textCol),a
+    xor a
+    ld (textCol + 1),a
+
+    ld a,e
+    add a,19
+    ld (textRow),a
+    xor a
+    ld (textRow + 1),a
+
+    ld a,b ;Get tile ID
+    ;A *= 6
+    add a,a
+    ld b,a
+    add a,a
+    add a,b
+
+    ld h,0
+    ld l,a
+    ld de,TileNumTable
+    add hl,de ;HL = pointer to BCD number
+    jp DispBCD
+
+;Draws a bit-packed sprite with transparent background and text-colored foreground
+;H - X
+;L - Y
+;IX - data
+;   Data format: width, height, (width / 8 * height) (2 bytes), pixels
+DrawSpriteTransparent:
+    ld d,l ;Y
+    ld e,(ix + 1) ;Height
+
+    ld l,h
+    ld h,0 ;X
+
+    ld b,h
+    ld c,(ix) ;Width
+    call SetLCDWin
+
+    ;BC = counter
+    ld c,(ix + 2)
+    ld b,(ix + 3)
+    inc ix \ inc ix \ inc ix \ inc ix ;IX = pixels
+
+    ld hl,736Ch ;Foreground
+_drawRow:
+    push bc
+    ld a,(ix)
+    ld bc,(8 << 8) | 11h
+    _drawCol:
+        rla
+        jr nc,_drawBG
+        _drawFG:
+            out (c),h
+            out (c),l
+            djnz _drawCol
+            jr _drawColDone
+        _drawBG:
+            ;Dummy
+            in d,(c)
+            in d,(c)
+            ;Actual
+            in d,(c)
+            in e,(c)
+            out (c),d
+            out (c),e
+            djnz _drawCol
+        _drawColDone:
+    inc ix
+    pop bc
+    dec bc
+    ld a,b
+    or c
+    jr nz,_drawRow
+    ret
+
+
+;Applies the lightening mask that you get for a game over
+;240 * 238
+;The original uses rgba(238, 228, 218, 0.73)
+;This means that
+;   R = 0.933 * 0.73 + (DST * 0.27)
+;   G = 0.894 * 0.73 + (DST * 0.27)
+;   B = 0.855 * 0.73 + (DST * 0.27)
+;Or
+;   0.68 + DST / 3.7
+;   0.65 + DST / 3.7
+;   0.62 + DST / 3.7
+;We can approximate this (with RGB 5-6-5 vals) as
+;   21 + DST >> 2
+;   40 + DST >> 2
+;   18 + DST >> 2
+;Bit shift can be done in one step as
+;   DST = (DST >> 2) & (%0011100111100111)
+;And we can gurantee that there will be no overflow between colors.
+;so we can add all channels at once too.
+LightenBoard:
+    ld hl,0
+    ld bc,238
+    ld d,0
+    ld e,240
+    call SetLCDWin
+
+    ;Color to add
+    ld bc,(21 << 11) | (40 << 5) | 18
+
+    ld d,240 ;Outer loop
+_lightenOuter:
+    ld e,238
+    _lightenInner:
+        ;Dummy
+        in a,(11h)
+        in a,(11h)
+
+        ;Actual
+        in a,(11h)
+        ld h,a
+        in a,(11h)
+        ld l,a
+
+        ;HL >> 2 w/ bit AND
+        srl h
+        rr l
+        srl h
+        rr l
+        ld a,h
+        and %00111001
+        ld h,a
+        ld a,l
+        and %11100111
+        ld l,a
+
+        ;Color add
+        add hl,bc
+
+        ;Re-write to LCD
+        ld a,h
+        out (11h),a
+        ld a,l
+        out (11h),a
+        dec e
+        jr nz,_lightenInner
+    dec d
+    jr nz,_lightenOuter
+    ret
+
+;Sets LCD window, then sets active register back to lrGram
+;HL - X
+;BC - Width
+;D - Y
+;E - Height
+SetLCDWin:
+    ld a,lrWinLeft
+    out (10h),a
+    out (10h),a
+    ld a,h \ out (11h),a
+    ld a,l \ out (11h),a
+
+    ld a,lrCol
+    out (10h),a
+    out (10h),a
+    ld a,h \ out (11h),a
+    ld a,l \ out (11h),a
+
+    add hl,bc
+    dec hl
+
+    ld a,lrWinRight
+    out (10h),a
+    out (10h),a
+    ld a,h \ out (11h),a
+    ld a,l \ out (11h),a
+
+    ld a,lrWinTop
+    out (10h),a
+    out (10h),a
+    xor a  \ out (11h),a
+    ld a,d \ out (11h),a
+
+    ld a,lrRow
+    out (10h),a
+    out (10h),a
+    xor a  \ out (11h),a
+    ld a,d \ out (11h),a
+
+    ld a,lrWinBottom
+    out (10h),a
+    out (10h),a
+    xor a  \ out (11h),a
+    ld a,d
+    add a,e
+    dec a
+    out (11h),a
+
+    ld a,lrGram
+    out (10h),a
+    out (10h),a
+    ret
+
+.endmodule

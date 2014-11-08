@@ -1,0 +1,78 @@
+.module Score
+;score is 3 bytes, defined in data.z80
+.var 3, oldScore
+;Draws the 24bit num score
+DrawScore:
+    ld hl,242
+    ld (textCol),hl
+    ld a,80
+    ld (textRow),a
+
+    ld hl,0000h
+    ld (textFg),hl
+    ld hl,FFFFh
+    ld (textBg),hl
+
+    ld hl,score
+    call ConvertToBCD
+
+    ld hl,bcdRam
+    call DispBCD
+    ret
+
+ResetScore:
+    xor a
+    ld (score),a
+    ld (score + 1),a
+    ld (score + 2),a
+    ret
+
+;Save score
+SaveScore:
+    ld hl,(score)
+    ld (oldScore),hl
+    ld a,(score + 2)
+    ld (oldScore + 2),a
+    ret
+
+;Restore score
+RestoreScore:
+    ld hl,(oldScore)
+    ld (score),hl
+    ld a,(oldScore + 2)
+    ld (score + 2),a
+    ret
+
+
+;Adds DE to the score
+;Destroys HL,DE
+AddToScore:
+    ld hl,(score)
+    add hl,de ;Add low bits
+    ld (score),hl
+    ret nc ;No carry, don't inc high bits
+    ld hl,score + 2
+    inc (hl)
+    ret
+
+;Adds the value of a tile ID to the score, preserves all registers
+;In other words, Score += 2^Tile
+;A: Tile
+AddTileToScore:
+    push af
+    push hl
+    push de
+    dec a ;No entry for tile ID 0
+    add a,a
+    ld hl,TwosPowerTable
+    ld d,0
+    ld e,a
+    add hl,de
+    ld e,(hl) \ inc hl
+    ld d,(hl)
+    call AddToScore
+    pop de
+    pop hl
+    pop af
+    ret
+.endmodule
