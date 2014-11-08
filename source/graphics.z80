@@ -68,6 +68,11 @@ DrawSidebar:
     ld ix,UsernamePic
     call DrawSprite_1Bit
 
+    ld de,238 + 26
+    ld hl,142
+    ld ix,DoorsCSEIcon
+    call DrawSprite_1Bit
+
     ld de,242
     ld hl,2
     ld ix,ScorePic

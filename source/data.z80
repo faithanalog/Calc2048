@@ -105,6 +105,11 @@ UsernamePic:
 .db 79, 9
 .incbmp "assets/unknownloner_text.png"
 
+DoorsCSEIcon:
+.dw ScorePalette
+.db 30, 27
+.incbmp "assets/doorscs_icon.png"
+
 Font:
 .incbmp "assets/chars.png"
 
