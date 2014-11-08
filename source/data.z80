@@ -56,16 +56,19 @@ TileNumTable:
 ;See TwosPowerTable for order of values
 .align 16 ;OffTable, X coord, Y coord, no worries about overflow for offsets
 TileNumOffTable:
-.db 21
-.db 21
-.db 21
-.db 15
-.db 15
-.db 15
-.db 9
-.db 9
-.db 9
-.db 9
+.db 21 ;2
+.db 21 ;4
+.db 21 ;8
+.db 15 ;16
+.db 15 ;32
+.db 15 ;64
+.db 9 ;128
+.db 9 ;256
+.db 9 ;512
+.db 4 ;1024
+.db 4 ;2048
+.db 4 ;4096
+.db 4 ;8192
 
 GameOverPic:
 .db 176, 53
