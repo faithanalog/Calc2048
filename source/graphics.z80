@@ -146,8 +146,6 @@ DrawTile:
     ld a,e
     add a,19
     ld (textRow),a
-    xor a
-    ld (textRow + 1),a
 
     ld a,b ;Get tile ID
     ;A *= 6
