@@ -5,7 +5,7 @@
 DrawScore:
     ld hl,242
     ld (textCol),hl
-    ld a,80
+    ld a,20
     ld (textRow),a
 
     ld hl,0000h
@@ -17,8 +17,24 @@ DrawScore:
     call ConvertToBCD
 
     ld hl,bcdRam
-    call DispBCD
-    ret
+    jp DispBCD
+
+DrawHighScore:
+    ld hl,242
+    ld (textCol),hl
+    ld a,52 + 19 + 18
+    ld (textRow),a
+
+    ld hl,0000h
+    ld (textFg),hl
+    ld hl,FFFFh
+    ld (textBg),hl
+
+    ld hl,high_score
+    call ConvertToBCD
+
+    ld hl,bcdRam
+    jp DispBCD
 
 ResetScore:
     xor a
@@ -44,7 +60,7 @@ RestoreScore:
     ret
 
 
-;Adds DE to the score
+;Adds DE to the score.
 ;Destroys HL,DE
 AddToScore:
     ld hl,(score)
@@ -54,6 +70,26 @@ AddToScore:
     ld hl,score + 2
     inc (hl)
     ret
+
+;If score > high_score, set high_score to score and redraw
+CheckForHighScore:
+    ld hl,score + 2
+    ld a,(high_score + 2)
+    sub (hl)
+    jp c,SetHighScore  ;score > high score
+    ld de,(score)
+    ld hl,(high_score)
+    sbc hl,de
+    jp c,SetHighScore  ;score > high score
+    ret
+
+;Copies score to high_score
+SetHighScore:
+    ld hl,(score)
+    ld (high_score),hl
+    ld a,(score + 2)
+    ld (high_score + 2),a
+    jp DrawHighScore
 
 ;Adds the value of a tile ID to the score, preserves all registers
 ;In other words, Score += 2^Tile

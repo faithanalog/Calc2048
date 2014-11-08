@@ -77,6 +77,34 @@ ConfirmRestartPic:
 .dw (120 / 8) * 53
 .incbmp "assets/text_restart_prompt.png"
 
+ScorePalette:
+.db FFh, DDh
+.db 00h, 00h
+
+;Contains the word 'Score:'
+ScorePic:
+.dw ScorePalette
+.db 54, 14
+.incbmp "assets/score_text.png"
+
+;Contains the word 'High'
+HighScorePic:
+.dw ScorePalette
+.db 40, 18
+.incbmp "assets/high_score_text.png"
+
+;the word 'By'
+ByPic:
+.dw ScorePalette
+.db 13, 10
+.incbmp "assets/by_text.png"
+
+;Username
+UsernamePic:
+.dw ScorePalette
+.db 79, 9
+.incbmp "assets/unknownloner_text.png"
+
 Font:
 .incbmp "assets/chars.png"
 
@@ -88,5 +116,8 @@ prev_board: ;Used to store previous board state for looking for changes
 .fill 16,0
 
 score:
-.fill 3, 0
+.fill 3,0
+
+high_score:
+.fill 3,0
 .endmodule

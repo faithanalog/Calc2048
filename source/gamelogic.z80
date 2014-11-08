@@ -78,6 +78,7 @@ GameStep:
 
     ;Board changed, draw score if needed, spawn tile
     call DrawScore
+    call CheckForHighScore
     call GenTile
     call IsGameOver ;Is the game now over?
     jp z,LoseGame

@@ -57,7 +57,33 @@ DrawSidebar:
     ld e,240
     ld bc,FFDDh
     call ColorRectangle
-    jp DrawScore
+
+    ld de,240
+    ld hl,240 - 10 - 11
+    ld ix,ByPic
+    call DrawSprite_1Bit
+
+    ld de,240
+    ld hl,240 - 10
+    ld ix,UsernamePic
+    call DrawSprite_1Bit
+
+    ld de,242
+    ld hl,2
+    ld ix,ScorePic
+    call DrawSprite_1Bit
+
+    ld de,242
+    ld hl,52
+    ld ix,HighScorePic
+    call DrawSprite_1Bit
+
+    ld de,242
+    ld hl,52 + 19
+    ld ix,ScorePic
+    call DrawSprite_1Bit
+    call DrawScore
+    jp DrawHighScore
 
 ;H - Pixel X / 2
 ;L - Pixel Y
