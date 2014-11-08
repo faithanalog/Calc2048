@@ -72,6 +72,11 @@ GameOverPic:
 .dw (176 / 8) * 53
 .incbmp "assets/text_gameover.png"
 
+ConfirmRestartPic:
+.db 120, 53
+.dw (120 / 8) * 53
+.incbmp "assets/text_restart_prompt.png"
+
 Font:
 .incbmp "assets/chars.png"
 

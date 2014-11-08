@@ -30,7 +30,7 @@ KeyScanInterrupt:
     ;Scan keys
     ld a,FFh
     out (01h),a
-    ld a,%11111100 ;Clear group and arrow key group
+    ld a,%10111100 ;Del group, Clear group and arrow key group
     out (01h),a
     or a
     push hl
@@ -38,7 +38,7 @@ KeyScanInterrupt:
     pop hl
 
     in a,(01h)
-    or %10110000
+    or %00010000
     ld b,a ;B = key code
 
     ld a,(keyState)

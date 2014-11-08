@@ -24,11 +24,18 @@ GameLoop:
     call WaitForKey
     bit 6,a ;Clear key
     ret z
+    bit 7,a ;Del key
+    jr nz,{@}
+    call ConfirmRestart
+    jr GameLoop
+    @:
     call GameStep
     call DrawTiles
     jr GameLoop
 
 GameStep:
+    ld b,FFh
+
     rra ;Down
     jr c,$+4
     ld b,3
@@ -41,6 +48,10 @@ GameStep:
     rra ;Up
     jr c,$+4
     ld b,1
+
+    ld a,FFh
+    cp b
+    ret z ;Down, left, right, up all not pressed, return out of step
 
     push bc ;Save num rotations
     ;Save board state
@@ -86,6 +97,62 @@ LoseGame:
     call InitGame
     ret
 
+
+;Displays the 'Restart?' thing on the screen,
+;waits for a '2nd' key to confirm
+.var byte, restartOpt
+ConfirmRestart:
+    di
+    call LightenBoard
+    ld h,60
+    ld l,93
+    ld ix,ConfirmRestartPic
+    call DrawSpriteTransparent
+    ei
+    ld a,1
+    ld (restartOpt),a
+    call InvertRestartNo
+
+_confRestartLp:
+    call WaitForKey
+    bit 5,a
+    jr z,_endConfRestartLp
+    or %11111001 ;Mask out all but left/right arrow keys
+    cp FFh
+    jr z,_confRestartLp ;Left/right not pressed, wait for key again
+    ld a,(restartOpt)
+    xor 1
+    ld (restartOpt),a
+    call InvertRestartYes
+    call InvertRestartNo
+    jr _confRestartLp
+
+_endConfRestartLp:
+    ld a,(restartOpt)
+    or a
+    jr nz,{@} ;NZ - They pressed NO
+    jp InitGame
+    @:
+    call DrawSidebar
+    jp DrawBoardFull
+
+;Invert the 'Yes' option for restart screen
+InvertRestartYes:
+    ld h,30 + 3
+    ld l,93 + 33
+    ld d,21
+    ld e,22
+    ld bc,1337h ;Invert
+    jp ColorRectangle
+
+;Invert the 'No' option for restart screen
+InvertRestartNo:
+    ld h,30 + 39
+    ld l,93 + 33
+    ld d,17
+    ld e,22
+    ld bc,1337h ;Invert
+    jp ColorRectangle
 
 ;Checks if game is over by attempting to move board left, up, right, and down.
 ;Set NZ if game not over, Z if game over
