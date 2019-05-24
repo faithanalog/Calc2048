@@ -1,8 +1,11 @@
+#define TI83P
+.binarymode TI8X
 .nolist
 .global
-#include "ti84pcse.inc"
-#include "dcse8.inc"
+#include "tasm/ti84pcse.inc"
+#include "tasm/dcse8.inc"
 .endglobal
+#include "source/data_labels.inc"
 .list
 .variablename U2048
 
@@ -52,9 +55,32 @@ endDCSAuthor:
     .db $ff   ;End of header field: type 255
 ASMStart:
 .relocate UserMem
-.varloc saveSScreen, 300h
+    jr {+}
+    ;Mem for board data allocated in program, used to store board between runs.
+    ;Same applies to score
+    board:
+    .fill 16,0
+    prev_board: ;Used to store previous board state for looking for changes
+    .fill 16,0
+
+    score:
+    .fill 3,0
+
+    high_score:
+    .fill 3,0
++:
+    di
+    ;Map page 5 @ C000h
+    ld a,05h
+    out (05h),a
+
     ld a,1
     out (20h),a
+    
+    ld hl,COMPRESSED_DATA
+    ld de,C000h
+    call DecompressLZ4Data
+
     call SetupInterrupt
 
     ld hl,board
@@ -74,26 +100,19 @@ _notFirstRun:
     call GameLoop
 
     call RestoreInterrupt
+
+    ;Map page 0 @ C000h
+    ld a,00h
+    out (05h),a
+    ei
+
     xor a
     out (20h),a
     ret
 
-;Initialize game data and screen
-InitGame:
-    call ResetScore
-    call ClearBoard
-    call GenTile
-    call GenTile
-    call DrawSidebar
-    call DrawBoard
-    ret
+.include "source/lz4.z80"
 
+COMPRESSED_DATA:
+.incbin "source/data.bin.lz4"
 
-.include "source/gamelogic.z80"
-.include "source/bcd.z80"
-.include "source/graphics.z80"
-.include "source/textgraphics.z80"
-.include "source/keyinterrupt.z80"
-.include "source/score.z80"
-.include "source/data.z80"
 .endrelocate

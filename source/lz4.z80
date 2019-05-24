@@ -1,0 +1,111 @@
+.module LZ4
+;HL - Input buffer
+;DE - Output buffer
+DecompressLZ4Data:
+;Skip header data
+    ld bc,7
+    add hl,bc
+
+_decodeLZ4Block:
+    ;Block size - 4 bytes little endian,
+    ;but we assume it to be <65535 because RAM limits it
+    ld c,(hl) \ inc hl ;First byte of block size
+    ld b,(hl) \ inc hl ;Second byte of block size
+                inc hl ;Skip third byte of block size
+
+
+    ;Return if length == 0 (EOF)
+    ld a,b
+    or c
+    ret z
+
+    ld a,(hl) \ inc hl ;Fourth byte of block size
+    rla                ;If high bit == 1, uncompressed, else compressed
+    jr nc,_decodeCompressedBlock
+    ;Not compressed, do a data copy
+    ldir
+    jr _decodeLZ4Block
+_decodeCompressedBlock:
+    ;Compressed, run decompression
+    call _DecompressLZ4Block
+    jr _decodeLZ4Block
+
+;HL - Input buffer
+;DE - Output buffer
+;BC - Block length
+_DecompressLZ4Block:
+    push hl                                                         ;STK: Input Buffer (IB)
+    add hl,bc
+    ex (sp),hl                                                      ;STK: IB + Block Length (BL)
+
+_decompressLp:
+    ld a,(hl) \ inc hl ;Sequence token
+    push af                                                         ;STK: Seq Token : IB+BL
+    ;===Decompress Literals===
+    ;High 4 bits -> Low 4 bits
+    rra
+    rra
+    rra
+    rra
+    and 0Fh
+    ;If length is 0, no copying
+    jr z,{+}
+    ld c,15
+    call _ReadByteExtensions ;BC = num literals
+    ldir
+    +:
+    ;===
+    pop af                                                          ;STK: IB+BL
+
+;If we've processed the input length, return
+    pop bc                                                          ;STK: -
+    or a
+    sbc hl,bc
+    add hl,bc
+    ret z
+    push bc                                                         ;STK: IB+BL
+
+    ;===Decompress Matches===
+    push hl ; Store address of offset                               ;STK: Match Offset Address : IB+BL
+
+    and 0Fh
+    add a,4 ;Add 4 because min is 4
+    ld c,19
+    call _ReadByteExtensions ;BC = match length
+
+    ex (sp),hl  ;HL = address of offset, (SP) = input buffer        ;STK: IB : IB+BL
+    push de                                                         ;STK: Output Buffer (OB) : IB : IB+BL
+    push de                                                         ;STK: OB : OB : IB : IB+BL
+    ld e,(hl) \ inc hl
+    ld d,(hl)    ;DE = offset
+    pop hl       ;HL = output buffer                                ;STK: OB : IB : IB+BL
+    or a
+    sbc hl,de    ;HL = match start
+    pop de       ;DE = output buffer                                ;STK: IB : IB+BL
+    ldir
+
+    pop hl                                                          ;STK: IB+BL
+    pop hl       ;HL = input buffer                                 ;STK: -
+
+    ;===
+    jr _decompressLp
+
+;Input: A = Initial length
+;       C = Length indicative of byte extensions (either 15 or 19)
+;       HL = Input buffer
+;Output: Initial length + byte extensions
+_ReadByteExtensions:
+    ld b,0
+    cp c
+    ld c,a
+    ret nz
+    _readByteExtensionsLp:
+        ld c,(hl) \ inc hl
+        add a,c
+        jr nc,$+3
+        inc b
+        inc c ;If C == 255, this will set carry, and we will know
+              ; to read another byte extension
+        jr c,_readByteExtensionsLp
+    ld c,a
+    ret

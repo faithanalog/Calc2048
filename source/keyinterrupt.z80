@@ -105,6 +105,5 @@ RestoreInterrupt:
 
     im 1
     b_call(_DelRes) ;We trashed star vars
-    ei
     ret
 .endmodule

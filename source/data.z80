@@ -1,4 +1,3 @@
-.module Data
 ;Background color for tiles. Also contains foreground colors for text
 ;so it can be used as sprite palettes
 .align 64
@@ -116,16 +115,8 @@ DoorsCSEIcon:
 Font:
 .incbmp "assets/chars.png"
 
-;Mem for board data allocated in program, used to store board between runs.
-;Same applies to score
-board:
-.fill 16,0
-prev_board: ;Used to store previous board state for looking for changes
-.fill 16,0
 
-score:
-.fill 3,0
-
-high_score:
-.fill 3,0
-.endmodule
+board = UserMem + 2
+prev_board = board + 16
+score = prev_board + 16
+high_score = score + 3

@@ -1,0 +1,26 @@
+.nolist
+.global
+#include "tasm/ti84pcse.inc"
+#include "tasm/dcse8.inc"
+.endglobal
+.org C000h
+.varloc saveSScreen, 300h
+.export SetupInterrupt, GenTile, DrawSidebar, DrawBoardFull, GameLoop, RestoreInterrupt
+;Initialize game data and screen
+InitGame:
+    call ResetScore
+    call ClearBoard
+    call GenTile
+    call GenTile
+    call DrawSidebar
+    call DrawBoard
+    ret
+
+.include "source/gamelogic.z80"
+.include "source/bcd.z80"
+.include "source/graphics.z80"
+.include "source/textgraphics.z80"
+.include "source/keyinterrupt.z80"
+.include "source/score.z80"
+.include "source/data.z80"
+.endexport
